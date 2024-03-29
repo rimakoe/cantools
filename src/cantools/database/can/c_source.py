@@ -16,6 +16,9 @@ from typing import (
 
 from cantools import __version__
 
+def to_camel_case(snake_str):
+    return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+
 if TYPE_CHECKING:
     from cantools.database.can import Database, Message, Signal
 
@@ -298,6 +301,110 @@ all:
 \tllvm-cov report ./$(EXE) -instr-profile=$(EXE).profdata
 
 '''
+####################################
+# ROS2
+
+# HEADER_ROS2_FMT = '''
+# #ifndef _ROS2_CAN_BRIDGE_H_
+# #define _ROS2_CAN_BRIDGE_H_
+
+# #include <linux/can.h>
+# #include <linux/can/raw.h>
+# #include <net/if.h>
+# #include <sys/ioctl.h>
+# #include <sys/socket.h>
+# #include <rclcpp/logger.hpp>
+# #include <rclcpp/rclcpp.hpp>
+# #include "{filename_header}" // can bus interface
+
+# class ROS2CANBridge : public rclcpp::Node
+# {
+# public:
+#     ROS2CANBridge();
+#     ~ROS2CANBridge();
+    
+# private:
+#     // SUBSCRIBERS
+#     {subscriber_declarations}
+    
+#     // CALLBACKS
+#     {callback_declarations}
+    
+#     // PUBLISHER
+#     {publisher_declarations}
+    
+#     int socket_instance;
+# };# ROS2
+
+
+# #endif  // _ROS2_CAN_BRIDGE_H_
+# '''
+
+# HEADER_ROS2_SUBSCRIBER_FMT = '''
+#     rclcpp::Subscription<{subscriber_message_type}>::SharedPtr {subscriber_instance_name};
+# '''
+
+# HEADER_ROS2_SUBSCRIBER_CALLBACK_FMT = '''
+#     void {callback_function_name}({callback_message_data_type}::SharedPtr pMsg);
+# '''
+
+# HEADER_ROS2_PUBLISHER_FMT = '''
+#     rclcpp::Publisher<{publisher_message_type}>::SharedPtr {publisher_instance_name};
+# '''
+
+# SOURCE_ROS2_FMT = '''
+# #include "../include/{ros_node_name}/{ros_node_header_filename}"
+
+# ROS2CANBridge::ROS2CANBridge() : rclcpp::Node("ROS2CANBridge")
+# {
+#     // Subscriber
+#     {subscriber_init}
+
+#     // Publisher
+#     {publisher_init}
+
+#     // CAN BUS
+#     {can_init} // can1_main_ft24_jetson_commands_init(&command_can_frame);
+
+#     if ((socket_instance = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {
+#         RCLCPP_ERROR(this->get_logger(), "Cant Init CAN Socket");
+#         return;
+#     }
+
+#     struct ifreq ifr;
+#     strcpy(ifr.ifr_name, "vcan0" );
+#     ioctl(socket_instance, SIOCGIFINDEX, &ifr);
+
+#     struct sockaddr_can addr;
+#     memset(&addr, 0, sizeof(addr));
+#     addr.can_family = AF_CAN;
+#     addr.can_ifindex = ifr.ifr_ifindex;
+#     if (bind(socket_instance, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+#         perror("Bind");
+#         RCLCPP_ERROR(this->get_logger(), "Cant Bind CAN Bus Socket");
+#         return;
+#     }
+#     RCLCPP_INFO(this->get_logger(), "Node init finished");
+# }
+
+# '''
+
+# SOURCE_ROS2_SUBSCRIBER_INIT_FMT = '''
+#      {subscriber_instance_name} = this->create_subscription<{subscriber_message_type}>(
+#         {subscriber_topic_name},
+#         10,
+#         std::bind(&ROS2CANBridge::{callback_function_name}, this, std::placeholders::_1));
+# '''
+
+# SOURCE_ROS2_PUBLISHER_INIT_FMT = '''
+#     {publisher_instance_name} = this->create_publisher<{publisher_message_type}>({publisher_topic_name}, 10);
+# '''
+
+# MESSAGE_FMT = '''
+
+# '''
+
+#################################
 
 TEST_FMT = '''
 static void test_{name}(
@@ -359,6 +466,20 @@ STRUCT_FMT = '''\
 struct {database_name}_{message_name}_t {{
 {members}
 }};
+'''
+
+ROS2_MSG_FMT = '''\
+std_msgs/Header header
+uint32 id
+uint8 dlc
+{data_type} data
+uint8 err
+uint8 rtr
+uint8 eff
+'''
+
+ROS2_MSG_DATA_FMT = '''\
+{database_name}_{message_name}_t data
 '''
 
 DECLARATION_PACK_FMT = '''\
@@ -593,6 +714,14 @@ SIGNAL_MEMBER_FMT = '''\
      * Offset: {offset}
      */
     {type_name} {name}{length};\
+'''
+
+SIGNAL_MEMBER_ROS2_FMT = '''\
+
+# Range: {range}
+# Scale: {scale}
+# Offset: {offset}
+{type_name} {name}{length}\
 '''
 
 INIT_SIGNAL_BODY_TEMPLATE_FMT = '''\
@@ -904,6 +1033,25 @@ def _generate_signal(cg_signal: "CodeGenSignal", bit_fields: bool) -> str:
 
     return member
 
+def _generate_signal_ros2(cg_signal: "CodeGenSignal", bit_fields: bool) -> str:
+    range_ = _format_range(cg_signal)
+    scale = _get(cg_signal.signal.conversion.scale, '-')
+    offset = _get(cg_signal.signal.conversion.offset, '-')
+
+    if cg_signal.signal.conversion.is_float or not bit_fields:
+        length = ''
+    else:
+        length = f' : {cg_signal.signal.length}'
+
+    member = SIGNAL_MEMBER_ROS2_FMT.format(range=range_,
+                                      scale=scale,
+                                      offset=offset,
+                                      type_name=cg_signal.type_name.strip('_t'),
+                                      name=cg_signal.snake_name,
+                                      length=length)
+
+    return member
+
 
 def _format_pack_code_mux(cg_message: "CodeGenMessage",
                           mux: Dict[str, Dict[int, List[str]]],
@@ -1208,6 +1356,20 @@ def _generate_struct(cg_message: "CodeGenMessage", bit_fields: bool) -> Tuple[st
 
     return comment, members
 
+def _generate_ros2_msg(cg_message: "CodeGenMessage", bit_fields: bool) -> Tuple[str, List[str]]:
+    members = []
+
+    for cg_signal in cg_message.cg_signals:
+        members.append(_generate_signal_ros2(cg_signal, bit_fields))
+
+    if not members:
+        members.append(
+    '''\
+    # Dummy signal in empty message.\
+    uint8 dummy
+    ''')
+
+    return members
 
 def _format_choices(cg_signal: "CodeGenSignal", signal_name: str) -> List[str]:
     choices = []
@@ -1432,6 +1594,21 @@ def _generate_structs(database_name: str,
                                   members='\n\n'.join(members)))
 
     return '\n'.join(structs)
+
+def _generate_ros2_msgs(database_name: str,
+                      cg_messages: List["CodeGenMessage"],
+                      bit_fields: bool,
+                      node_name: Optional[str]) -> dict:
+    msgs = {}
+
+    for cg_message in cg_messages:
+        if _is_sender_or_receiver(cg_message, node_name):
+            msg = _generate_ros2_msg(cg_message, bit_fields)
+            msgs[to_camel_case(cg_message.snake_name) + "Stamped"] = ROS2_MSG_FMT.format(
+                                                                data_type=to_camel_case(cg_message.snake_name),
+                                                                )
+            msgs[to_camel_case(cg_message.snake_name)] = ''.join(msg)
+    return msgs
 
 
 def _is_sender(cg_message: "CodeGenMessage", node_name: Optional[str]) -> bool:
@@ -1715,7 +1892,7 @@ def generate(database: "Database",
              bit_fields: bool = False,
              use_float: bool = False,
              node_name: Optional[str] = None,
-             ) -> Tuple[str, str, str, str]:
+             ) -> Tuple[dict, str, str, str, str]:
     """Generate C source code from given CAN database `database`.
 
     `database_name` is used as a prefix for all defines, data
@@ -1762,7 +1939,7 @@ def generate(database: "Database",
         database_name,
         cg_messages,
         node_name)
-    choices_defines = _generate_choices_defines(database_name, cg_messages, node_name)
+    choices_defines = _generate_choices_defines(dataros2_ws/src/cantools/src/cantools/subparsers/generate_c_source_ros2_msgs.pybase_name, cg_messages, node_name)
 
     frame_name_macros = _generate_frame_name_macros(database_name, cg_messages, node_name)
     signal_name_macros = _generate_signal_name_macros(database_name, cg_messages, node_name)
@@ -1798,7 +1975,14 @@ def generate(database: "Database",
                                header=header_name,
                                helpers=helpers,
                                definitions=definitions)
+    
+    ros2_msgs = _generate_ros2_msgs(database_name, cg_messages, bit_fields, node_name)
+    
+    # header_ros2 = HEADER_ROS2_FMT.format(filename_header=header_name)
 
+    # source_ros2 = SOURCE_ROS2_FMT.format()
+    
+    
     fuzzer_source, fuzzer_makefile = _generate_fuzzer_source(
         database_name,
         cg_messages,
@@ -1807,4 +1991,82 @@ def generate(database: "Database",
         source_name,
         fuzzer_source_name)
 
-    return header, source, fuzzer_source, fuzzer_makefile
+    return ros2_msgs, header, source, fuzzer_source, fuzzer_makefile
+
+
+def generate_ros2_msgs(database: "Database",
+             database_name: str,
+             bit_fields: bool = False,
+             node_name: Optional[str] = None,
+             ) -> dict:
+    """Generate C++ ros2 messages from given CAN database `database`.
+
+    `database_name` is used as a prefix for all defines, data
+    structures and functions.
+
+    """
+
+    cg_messages = [CodeGenMessage(message) for message in database.messages]
+    
+    ros2_msgs = _generate_ros2_msgs(database_name, cg_messages, bit_fields, node_name)
+
+    return ros2_msgs
+
+ROS2_MSGS_CMAKE_FMT = '''
+cmake_minimum_required(VERSION 3.8)
+project(can_msgs)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+set(AUTOGENERATED_FILE_NAME can1_main_ft24)
+set(CAN_DBC_FILE_NAME CAN1MainFT24.dbc)
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package({pkg_name_can_interface} REQUIRED)
+
+include_directories(${{{pkg_name_can_interface}_INCLUDE_DIR}})
+
+add_custom_command(COMMAND python3 -m cantools generate_c_source_ros2_msgs --prune ${{{pkg_name_can_interface}_INCLUDE_DIR}/dbc/${{CAN_DBC_FILE_NAME}} --database-name ${{AUTOGENERATED_FILE_NAME}}
+  COMMAND ${{CMAKE_COMMAND}} -E touch my_file.stamp
+  OUTPUT my_file.stamp  
+  WORKING_DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}/msgs"
+  DEPENDS "${{can_interface_INCLUDE_DIR}}/dbc/${{CAN_DBC_FILE_NAME}}"
+  PRE_BUILD
+  COMMENT "Generating ROS2 msgs for CAN based on DBC file"
+  VERBATIM
+
+)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # comment the line when a copyright and license is added to all source files
+  set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # comment the line when this package is in a git repo and when
+  # a copyright and license is added to all source files
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()def to_camel_case(snake_str):
+    return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+endif()
+
+ament_package()
+'''
+
+ROS2_MSGS_PKGXML_FMT = '''
+'''
+
+def generate_ros2_msgs_pkg_files(ros2_msgs: dict, can_interface_name: str) -> Tuple[str, str]:
+    """Generate cmake and pacakge.xml for the message package.
+
+    `ros2_msgs` for the names of the messages
+    
+    `can_interface_name` to link the dbc file 
+
+    """
+    cmake = ''
+    pkgxml = ''
+    return cmake, pkgxml
