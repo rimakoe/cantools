@@ -19,7 +19,7 @@ def _do_generate_c_source_ros2_msgs(args):
     else:
         database_name = args.database_name
 
-    ros2_msgs = generate_ros2_msgs(
+    ros2_msgs, include_file = generate_ros2_msgs(
         dbase,
         database_name,
         args.bit_fields,
@@ -35,7 +35,11 @@ def _do_generate_c_source_ros2_msgs(args):
         with open(path_msg, 'w') as fout:
             fout.write(content_msg)
 
-    print(f'Successfully generated ROS2 messages.')
+    path_msg = os.path.join('/home/koeppe/ros2_can_bridge/ros2_ws/src/ros2_can_utils/can_msgs/include/can_msgs', 'messages.h')
+    with open(path_msg, 'w') as fout:
+        fout.write(include_file)
+    
+    print(f'Successfully generated ROS2 messages and include file.')
 
 
 def add_subparser(subparsers):

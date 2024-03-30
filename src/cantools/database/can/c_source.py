@@ -15,9 +15,16 @@ from typing import (
 )
 
 from cantools import __version__
+from re import sub
 
 def to_camel_case(snake_str):
     return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+
+def to_snake_case(s):
+    return '_'.join(
+        sub('([A-Z][a-z]+)', r' \1',
+        sub('([A-Z]+)', r' \1',
+        s.replace('-', ' '))).split()).lower()
 
 if TYPE_CHECKING:
     from cantools.database.can import Database, Message, Signal
@@ -470,7 +477,7 @@ struct {database_name}_{message_name}_t {{
 
 ROS2_MSG_FMT = '''\
 std_msgs/Header header
-uint32 id
+uint32 id {default_id}
 uint8 dlc
 {data_type} data
 uint8 err
@@ -1605,11 +1612,38 @@ def _generate_ros2_msgs(database_name: str,
         if _is_sender_or_receiver(cg_message, node_name):
             msg = _generate_ros2_msg(cg_message, bit_fields)
             msgs[to_camel_case(cg_message.snake_name) + "Stamped"] = ROS2_MSG_FMT.format(
+                                                                default_id=cg_message.message.frame_id,
                                                                 data_type=to_camel_case(cg_message.snake_name),
                                                                 )
             msgs[to_camel_case(cg_message.snake_name)] = ''.join(msg)
     return msgs
 
+ROS2_MSGS_INCLUDE_FILE_FMT = '''
+#ifndef _CAN_MESSAGES_H_
+#define _CAN_MESSAGES_H_
+
+{includes}
+
+#endif // _CAN_MESSAGES_H_
+'''
+
+ROS2_MSGS_SINGLE_INCLUDE_FMT = '''\
+#include <can_msgs/msg/{message_name_snake_case}>
+'''
+
+def _generate_ros2_msgs_include(database_name: str,
+                      cg_messages: List["CodeGenMessage"],
+                      bit_fields: bool,
+                      node_name: Optional[str]) -> dict:
+    include_file = ''
+    includes = []
+    for cg_message in cg_messages:
+        if _is_sender_or_receiver(cg_message, node_name):
+            includes.append(ROS2_MSGS_SINGLE_INCLUDE_FMT.format(message_name_snake_case=to_snake_case(to_camel_case(cg_message.snake_name)) + '.hpp'))
+            includes.append(ROS2_MSGS_SINGLE_INCLUDE_FMT.format(message_name_snake_case=to_snake_case(to_camel_case(cg_message.snake_name + '_stamped')) + '.hpp'))
+
+    include_file=ROS2_MSGS_INCLUDE_FILE_FMT.format(includes = ''.join(includes))
+    return include_file
 
 def _is_sender(cg_message: "CodeGenMessage", node_name: Optional[str]) -> bool:
     return node_name is None or node_name in cg_message.message.senders
@@ -1892,7 +1926,7 @@ def generate(database: "Database",
              bit_fields: bool = False,
              use_float: bool = False,
              node_name: Optional[str] = None,
-             ) -> Tuple[dict, str, str, str, str]:
+             ) -> Tuple[str, str, str, str]:
     """Generate C source code from given CAN database `database`.
 
     `database_name` is used as a prefix for all defines, data
@@ -1939,7 +1973,7 @@ def generate(database: "Database",
         database_name,
         cg_messages,
         node_name)
-    choices_defines = _generate_choices_defines(dataros2_ws/src/cantools/src/cantools/subparsers/generate_c_source_ros2_msgs.pybase_name, cg_messages, node_name)
+    choices_defines = _generate_choices_defines(database_name, cg_messages, node_name)
 
     frame_name_macros = _generate_frame_name_macros(database_name, cg_messages, node_name)
     signal_name_macros = _generate_signal_name_macros(database_name, cg_messages, node_name)
@@ -1976,12 +2010,6 @@ def generate(database: "Database",
                                helpers=helpers,
                                definitions=definitions)
     
-    ros2_msgs = _generate_ros2_msgs(database_name, cg_messages, bit_fields, node_name)
-    
-    # header_ros2 = HEADER_ROS2_FMT.format(filename_header=header_name)
-
-    # source_ros2 = SOURCE_ROS2_FMT.format()
-    
     
     fuzzer_source, fuzzer_makefile = _generate_fuzzer_source(
         database_name,
@@ -1991,14 +2019,14 @@ def generate(database: "Database",
         source_name,
         fuzzer_source_name)
 
-    return ros2_msgs, header, source, fuzzer_source, fuzzer_makefile
+    return header, source, fuzzer_source, fuzzer_makefile
 
 
 def generate_ros2_msgs(database: "Database",
              database_name: str,
              bit_fields: bool = False,
              node_name: Optional[str] = None,
-             ) -> dict:
+             ) -> Tuple[dict, str]:
     """Generate C++ ros2 messages from given CAN database `database`.
 
     `database_name` is used as a prefix for all defines, data
@@ -2009,8 +2037,8 @@ def generate_ros2_msgs(database: "Database",
     cg_messages = [CodeGenMessage(message) for message in database.messages]
     
     ros2_msgs = _generate_ros2_msgs(database_name, cg_messages, bit_fields, node_name)
-
-    return ros2_msgs
+    include = _generate_ros2_msgs_include(database_name, cg_messages, bit_fields, node_name)
+    return ros2_msgs, include
 
 ROS2_MSGS_CMAKE_FMT = '''
 cmake_minimum_required(VERSION 3.8)
@@ -2021,7 +2049,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(AUTOGENERATED_FILE_NAME can1_main_ft24)
-set(CAN_DBC_FILE_NAME CAN1MainFT24.dbc)
+set(CAN_DBC_FILE_NAME CAN1MainFT24.dbc)os2_ws/src/cantools/src/cantools/subparsers/generate_c_source_ros2_msgs.py
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
