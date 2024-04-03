@@ -3,10 +3,10 @@ import os
 import os.path
 
 from .. import database
-from ..database.can.c_source import camel_to_snake_case, generate_transciever
+from ..database.can.c_source import camel_to_snake_case, generate_transceiver
 
 
-def _do_generate_c_source_transciever(args):
+def _do_generate_c_source_transceiver(args):
     dbase = database.load_file(args.infile,
                                encoding=args.encoding,
                                prune_choices=args.prune,
@@ -20,10 +20,10 @@ def _do_generate_c_source_transciever(args):
         database_name = args.database_name
         
     filename_endec_hpp = 'endec.hpp'
-    filename_transciever_h = 'transciever.h'
-    filename_transciever_cpp = 'transciever.cpp'
+    filename_transceiver_h = 'transceiver.h'
+    filename_transceiver_cpp = 'transceiver.cpp'
 
-    endec_hpp, transciever_h, transciever_cpp = generate_transciever(
+    endec_hpp, transceiver_h, transceiver_cpp = generate_transceiver(
         dbase,
         database_name,
         args.bit_fields
@@ -36,23 +36,23 @@ def _do_generate_c_source_transciever(args):
     with open(path_msg, 'w') as fout:
         fout.write(endec_hpp)
     
-    path_msg = os.path.join(args.output_headers, filename_transciever_h)
+    path_msg = os.path.join(args.output_headers, filename_transceiver_h)
     with open(path_msg, 'w') as fout:
-        fout.write(transciever_h)
+        fout.write(transceiver_h)
         
-    path_msg = os.path.join(args.output_sources, filename_transciever_cpp)
+    path_msg = os.path.join(args.output_sources, filename_transceiver_cpp)
     with open(path_msg, 'w') as fout:
-        fout.write(transciever_cpp)
+        fout.write(transceiver_cpp)
     
     print(f'')
-    print(f'Generated CAN Transciever Library based on ' + args.infile)
+    print(f'Generated CAN Transceiver Library based on ' + args.infile)
     print(f'')
     print(f'Headers:')
     print(f'\t' + os.path.join(os.getcwd(), args.output_headers, filename_endec_hpp))
-    print(f'\t' + os.path.join(os.getcwd(), args.output_headers, filename_transciever_h))
+    print(f'\t' + os.path.join(os.getcwd(), args.output_headers, filename_transceiver_h))
     print(f'')
     print(f'Sources:')
-    print(f'\t' + os.getcwd() + args.output_sources + filename_transciever_cpp)
+    print(f'\t' + os.getcwd() + args.output_sources + filename_transceiver_cpp)
     print(f'')
 
 
@@ -61,7 +61,7 @@ def _do_generate_c_source_transciever(args):
 
 def add_subparser(subparsers):
     generate_c_source_parser = subparsers.add_parser(
-        'generate_c_source_transciever',
+        'generate_c_source_transceiver',
         description='Generate C source code from given database file.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     generate_c_source_parser.add_argument(
@@ -94,4 +94,4 @@ def add_subparser(subparsers):
     generate_c_source_parser.add_argument(
         'infile',
         help='Input database file.')
-    generate_c_source_parser.set_defaults(func=_do_generate_c_source_transciever)
+    generate_c_source_parser.set_defaults(func=_do_generate_c_source_transceiver)

@@ -2239,11 +2239,11 @@ def _generate_endec_hpp(database_name: str,
     return endec_hpp
 
 #############################
-# TRANSCIEVER H
+# TRANSCEIVER H
 
-TRANSCIEVER_H_FMT = '''\
-#ifndef _TRANSCIEVER_H_
-#define _TRANSCIEVER_H_
+TRANSCEIVER_H_FMT = '''\
+#ifndef _TRANSCEIVER_H_
+#define _TRANSCEIVER_H_
 
 #include <chrono>
 #include <functional>
@@ -2258,15 +2258,15 @@ TRANSCIEVER_H_FMT = '''\
 #include <stdio.h>
 #include <string.h>
 
-#include "can-transciever-lib/endec.hpp"
+#include "can-transceiver-lib/endec.hpp"
 
 #define STANDARD_TIMEOUT 10000
 
 namespace canlib {{
-class Transciever {{
+class Transceiver {{
 public:
-    Transciever();
-    ~Transciever();
+    Transceiver();
+    ~Transceiver();
 
 {transmit_function_headers}
 
@@ -2283,10 +2283,10 @@ private:
 
 }}
 
-#endif // _TRANSCIEVER_H_
+#endif // _TRANSCEIVER_H_
 '''
 
-def _generate_transciever_h(database_name: str, 
+def _generate_transceiver_h(database_name: str, 
                              cg_messages: List["CodeGenMessage"]) -> str:
     transmit_headers = []
     frames = []
@@ -2294,17 +2294,17 @@ def _generate_transciever_h(database_name: str,
         transmit_headers.append('\tvirtual void transmit(canlib::frame::decoded::{can_name}::{message_name}_t {message_name});'.format(can_name=database_name,
                                                                                                                message_name=cg_message.snake_name))
         frames.append('\t{can_name}_{message_name}_t {can_name}_{message_name}_frame;'.format(can_name=database_name, message_name=cg_message.snake_name))
-    transciever_h = TRANSCIEVER_H_FMT.format(transmit_function_headers='\n'.join(transmit_headers),
+    transceiver_h = TRANSCEIVER_H_FMT.format(transmit_function_headers='\n'.join(transmit_headers),
                                              frames='\n'.join(frames))
-    return transciever_h
+    return transceiver_h
 
 #############################
-# TRANSCIEVER CPP
+# TRANSCEIVER CPP
 
-TRANSCIEVER_CPP_FMT = '''\
-#include "can-transciever-lib/transciever.h"
+TRANSCEIVER_CPP_FMT = '''\
+#include "can-transceiver-lib/transceiver.h"
 
-extern "C" canlib::Transciever::Transciever() {{
+extern "C" canlib::Transceiver::Transceiver() {{
     // Setup CAN Bus
     if ((socket_instance = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {{
         printf("Cant Init CAN Socket");
@@ -2326,10 +2326,10 @@ extern "C" canlib::Transciever::Transciever() {{
     }}
 }}
 
-extern "C" canlib::Transciever::~Transciever() {{
+extern "C" canlib::Transceiver::~Transceiver() {{
 }}
 
-bool canlib::Transciever::read(struct can_frame &frame, int timeout_usec) {{
+bool canlib::Transceiver::read(struct can_frame &frame, int timeout_usec) {{
     fd_set readSet;
     FD_ZERO(&readSet);
     FD_SET(socket_instance, &readSet);
@@ -2347,7 +2347,7 @@ bool canlib::Transciever::read(struct can_frame &frame, int timeout_usec) {{
     return nbytes == sizeof(struct can_frame);
 }}
 
-extern "C" bool canlib::Transciever::receive(int timeout_us) {{
+extern "C" bool canlib::Transceiver::receive(int timeout_us) {{
     can_frame can_frame_raw;
     if(read(can_frame_raw, timeout_us)) {{
         switch (can_frame_raw.can_id) {{
@@ -2362,7 +2362,7 @@ extern "C" bool canlib::Transciever::receive(int timeout_us) {{
 
 '''
 
-TRANSCIEVER_CPP_RECEIVE_CASES_FMT = '''\
+TRANSCEIVER_CPP_RECEIVE_CASES_FMT = '''\
             case {can_id}:
             {{
                 {can_name}_{message_name}_t {can_name}_{message_name};
@@ -2376,8 +2376,8 @@ TRANSCIEVER_CPP_RECEIVE_CASES_FMT = '''\
 '''
 
 
-TRANSCIEVER_CPP_TRANSMIT_FMT = '''\
-extern "C" void canlib::Transciever::transmit(canlib::frame::decoded::{can_name}::{message_name}_t {message_name}) {{
+TRANSCEIVER_CPP_TRANSMIT_FMT = '''\
+extern "C" void canlib::Transceiver::transmit(canlib::frame::decoded::{can_name}::{message_name}_t {message_name}) {{
     frame = can_frame();
     frame.can_id = {can_id};
     frame.can_dlc = {can_dlc};
@@ -2399,33 +2399,33 @@ extern "C" void canlib::Transciever::transmit(canlib::frame::decoded::{can_name}
     }}
 }}
 '''
-def _generate_transciever_cpp(database_name: str, 
+def _generate_transceiver_cpp(database_name: str, 
                              cg_messages: List["CodeGenMessage"]) -> str:
     receive_cases = []
     transmit_functions = []
     for cg_message in cg_messages:
-        receive_cases.append(TRANSCIEVER_CPP_RECEIVE_CASES_FMT.format(can_name=database_name, 
+        receive_cases.append(TRANSCEIVER_CPP_RECEIVE_CASES_FMT.format(can_name=database_name, 
                                                                       message_name=cg_message.snake_name,
                                                                       can_id=cg_message.message.frame_id))
-        transmit_functions.append(TRANSCIEVER_CPP_TRANSMIT_FMT.format(can_name=database_name,
+        transmit_functions.append(TRANSCEIVER_CPP_TRANSMIT_FMT.format(can_name=database_name,
                                                                       message_name=cg_message.snake_name,
                                                                       can_id=cg_message.message.frame_id,
                                                                       can_dlc=cg_message.message.length))
 
-    transciever_cpp = TRANSCIEVER_CPP_FMT.format(   receive_cases=''.join(receive_cases),
+    transceiver_cpp = TRANSCEIVER_CPP_FMT.format(   receive_cases=''.join(receive_cases),
                                                     transmit_functions='\n'.join(transmit_functions))
-    return transciever_cpp
+    return transceiver_cpp
 
 #############################
-# GENERATE COMPLETE TRANSCIEVER
+# GENERATE COMPLETE TRANSCEIVER
 
-def generate_transciever(   database: "Database",
+def generate_transceiver(   database: "Database",
                             database_name: str,
                             bit_fields: bool) -> str:
 
     cg_messages = [CodeGenMessage(message) for message in database.messages]
 
     endec_hpp = _generate_endec_hpp(database_name, cg_messages)
-    transciever_h = _generate_transciever_h(database_name, cg_messages)
-    transciever_cpp = _generate_transciever_cpp(database_name, cg_messages)
-    return endec_hpp, transciever_h, transciever_cpp
+    transceiver_h = _generate_transceiver_h(database_name, cg_messages)
+    transceiver_cpp = _generate_transceiver_cpp(database_name, cg_messages)
+    return endec_hpp, transceiver_h, transceiver_cpp
