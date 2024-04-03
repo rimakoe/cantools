@@ -2064,7 +2064,7 @@ ROS2_CAN_ENDEC_HPP = '''\
 #ifndef _ENDEC_HPP_
 #define _ENDEC_HPP_
 
-#include "can_lib/can1_main_ft24.h"
+#include "{filename_interface}.h"
 #include <functional>
 
 namespace canlib {{
@@ -2227,7 +2227,8 @@ def _generate_decoded_structs(database_name: str,
 def _generate_endec_hpp(database_name: str, 
                              cg_messages: List["CodeGenMessage"]) -> str:
             
-    endec_hpp = ROS2_CAN_ENDEC_HPP.format(can_name=database_name,
+    endec_hpp = ROS2_CAN_ENDEC_HPP.format(filename_interface=database_name,
+                                          can_name=database_name,
                                           frame_structs = _generate_decoded_structs(database_name, cg_messages),
                                           encode_functions = _generate_encode_functions(database_name, cg_messages),
                                           decode_functions = _generate_decode_functions(database_name, cg_messages),
@@ -2257,7 +2258,7 @@ TRANSCIEVER_H_FMT = '''\
 #include <stdio.h>
 #include <string.h>
 
-#include "can_lib/endec_autogen.hpp"
+#include "can-transciever-lib/endec.hpp"
 
 #define STANDARD_TIMEOUT 10000
 
@@ -2268,6 +2269,7 @@ public:
     ~Transciever();
 
 {transmit_function_headers}
+
     virtual bool receive(int timeout_us = STANDARD_TIMEOUT);
 
 private:
@@ -2300,9 +2302,7 @@ def _generate_transciever_h(database_name: str,
 # TRANSCIEVER CPP
 
 TRANSCIEVER_CPP_FMT = '''\
-#include "can_lib/transciever_autogen.h"
-#include <thread>
-using namespace std::chrono_literals;
+#include "can-transciever-lib/transciever.h"
 
 extern "C" canlib::Transciever::Transciever() {{
     // Setup CAN Bus

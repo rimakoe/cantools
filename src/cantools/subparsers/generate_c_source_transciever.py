@@ -18,6 +18,10 @@ def _do_generate_c_source_transciever(args):
         database_name = camel_to_snake_case(database_name)
     else:
         database_name = args.database_name
+        
+    filename_endec_hpp = 'endec.hpp'
+    filename_transciever_h = 'transciever.h'
+    filename_transciever_cpp = 'transciever.cpp'
 
     endec_hpp, transciever_h, transciever_cpp = generate_transciever(
         dbase,
@@ -25,28 +29,34 @@ def _do_generate_c_source_transciever(args):
         args.bit_fields
         )
         
-    os.makedirs(args.output_directory, exist_ok=True)
+    os.makedirs(args.output_headers, exist_ok=True)
+    os.makedirs(args.output_sources, exist_ok=True)
 
-    filename_endec_h = 'endec_autogen.hpp'
-    path_msg = os.path.join(args.output_directory, 'include/can_lib/' + filename_endec_h)
+    path_msg = os.path.join(args.output_headers, filename_endec_hpp)
     with open(path_msg, 'w') as fout:
         fout.write(endec_hpp)
     
-    filename_transciever_h = 'transciever_autogen.h'
-    path_msg = os.path.join(args.output_directory, 'include/can_lib/' + filename_transciever_h)
+    path_msg = os.path.join(args.output_headers, filename_transciever_h)
     with open(path_msg, 'w') as fout:
         fout.write(transciever_h)
         
-    filename_transciever_cpp = 'transciever_autogen.cpp'
-    path_msg = os.path.join(args.output_directory, 'src/' + filename_transciever_cpp)
+    path_msg = os.path.join(args.output_sources, filename_transciever_cpp)
     with open(path_msg, 'w') as fout:
         fout.write(transciever_cpp)
-        
-    print(f'Generated Transciever Library.\n')
-    print(f'Files:')
-    print(f'\t' + filename_endec_h + ' | ' +  filename_transciever_h + ' | ' + filename_transciever_cpp + '\n')
-    print(f'Directory:')
-    print(f'\t' + args.output_directory + '\n')
+    
+    print(f'')
+    print(f'Generated CAN Transciever Library based on ' + args.infile)
+    print(f'')
+    print(f'Headers:')
+    print(f'\t' + os.path.join(os.getcwd(), args.output_headers, filename_endec_hpp))
+    print(f'\t' + os.path.join(os.getcwd(), args.output_headers, filename_transciever_h))
+    print(f'')
+    print(f'Sources:')
+    print(f'\t' + os.getcwd() + args.output_sources + filename_transciever_cpp)
+    print(f'')
+
+
+
 
 
 def add_subparser(subparsers):
@@ -74,9 +84,13 @@ def add_subparser(subparsers):
         action='store_true',
         help='Skip database consistency checks.')
     generate_c_source_parser.add_argument(
-        '-o', '--output-directory',
+        '--output-headers',
         default='.',
-        help='Directory in which to write output files.')
+        help='Relative directory in which to write output header files.')
+    generate_c_source_parser.add_argument(
+        '--output-sources',
+        default='.',
+        help='Realtive directory in which to write output source files.')
     generate_c_source_parser.add_argument(
         'infile',
         help='Input database file.')
