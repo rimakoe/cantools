@@ -2266,6 +2266,7 @@ namespace canlib {{
 class Transceiver {{
 public:
     Transceiver();
+    Transceiver(std::string device_name, std::vector<can_filter> filters);
     ~Transceiver();
 
 {transmit_function_headers}
@@ -2304,7 +2305,11 @@ def _generate_transceiver_h(database_name: str,
 TRANSCEIVER_CPP_FMT = '''\
 #include "can-transceiver-lib/transceiver.h"
 
-extern "C" canlib::Transceiver::Transceiver() {{
+canlib::Transceiver::Transceiver() {{
+
+}}
+
+extern "C" canlib::Transceiver::Transceiver(std::string device_name, std::vector<can_filter> filters) {{
     // Setup CAN Bus
     if ((socket_instance = socket(PF_CAN, SOCK_RAW, CAN_RAW)) < 0) {{
         printf("Cant Init CAN Socket");
@@ -2312,8 +2317,15 @@ extern "C" canlib::Transceiver::Transceiver() {{
     }}
 
     struct ifreq ifr;
-    strcpy(ifr.ifr_name, "vcan0" );
+    strcpy(ifr.ifr_name, device_name.c_str() );
     ioctl(socket_instance, SIOCGIFINDEX, &ifr);
+    can_filter filter_arr[filters.size()];
+    int i = 0;
+    for (can_filter filter : filters) {{
+        filter_arr[i] = filter;
+        i++;
+    }}
+    setsockopt(socket_instance, SOL_CAN_RAW, CAN_RAW_FILTER, filter_arr, sizeof(filter_arr));
 
     struct sockaddr_can addr;
     memset(&addr, 0, sizeof(addr));
