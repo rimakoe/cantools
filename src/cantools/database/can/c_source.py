@@ -2154,8 +2154,7 @@ def _generate_callbacks( database_name: str,
                                 cg_messages: List["CodeGenMessage"]) -> str:
     callbacks = []
     for cg_message in cg_messages:
-        callbacks.append('\tstd::function<void({can_name}_{message_name}_t)> {message_name} = NULL;'.format(  can_name=database_name,
-                                                                                                            message_name=cg_message.snake_name))
+        callbacks.append('\tstd::function<void({can_name}_{message_name}_t, frame::decoded::{can_name}::{message_name}_t)> {message_name} = NULL;'.format(  can_name=database_name, message_name=cg_message.snake_name))
     return '\n'.join(callbacks)
 
 def _generate_data_structure( database_name: str, 
@@ -2380,8 +2379,9 @@ TRANSCEIVER_CPP_RECEIVE_CASES_FMT = '''\
                 {can_name}_{message_name}_t {can_name}_{message_name};
                 {can_name}_{message_name}_unpack(&{can_name}_{message_name}, can_frame_raw.data, can_frame_raw.can_dlc);
                 canlib::data.{can_name}.{message_name} = canlib::decode::{can_name}::{message_name}({can_name}_{message_name});
+                frame::decoded::{can_name}::{message_name}_t {can_name}_{message_name}_decoded = canlib::data.{can_name}.{message_name};
                 if(canlib::callback::rcv::{can_name}::{message_name} != NULL) {{
-                    canlib::callback::rcv::{can_name}::{message_name}({can_name}_{message_name});
+                    canlib::callback::rcv::{can_name}::{message_name}({can_name}_{message_name}, {can_name}_{message_name}_decoded);
                 }}
                 return true;
             }}
