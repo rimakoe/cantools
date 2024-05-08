@@ -2090,20 +2090,11 @@ namespace {can_name} {{
 {decode_functions}
 }}
 }}
-
-// data structure
-struct data_t {{
-struct {can_name}_t {{
-{data_messages}
-}} {can_name};
-}} data;
     
 // callback structure
 namespace callback {{
-namespace rcv {{
 namespace {can_name} {{
 {callbacks}
-}}
 }}
 }}
 }}
@@ -2128,7 +2119,7 @@ ENDEC_HPP_CONSTRUCTOR_FMT = '''\
 '''
 
 ROS2_CAN_ENDEC_DECODE_FUNCTION_FMT = '''\
-frame::decoded::{can_name}::{message_name}_t {message_name}(const {can_name}_{message_name}_t frame_encoded) {{
+inline frame::decoded::{can_name}::{message_name}_t {message_name}(const {can_name}_{message_name}_t frame_encoded) {{
     frame::decoded::{can_name}::{message_name}_t frame_decoded;
 {decode_signals}
     return frame_decoded;
@@ -2136,7 +2127,7 @@ frame::decoded::{can_name}::{message_name}_t {message_name}(const {can_name}_{me
 '''
 
 ROS2_CAN_ENDEC_ENCODE_FUNCTION_FMT = '''\
-{can_name}_{message_name}_t {message_name}(const frame::decoded::{can_name}::{message_name}_t frame_decoded) {{
+inline {can_name}_{message_name}_t {message_name}(const frame::decoded::{can_name}::{message_name}_t frame_decoded) {{
     {can_name}_{message_name}_t frame_encoded;
 {encode_signals}
     return frame_encoded;
@@ -2154,17 +2145,8 @@ def _generate_callbacks( database_name: str,
                                 cg_messages: List["CodeGenMessage"]) -> str:
     callbacks = []
     for cg_message in cg_messages:
-        callbacks.append('\tstd::function<void({can_name}_{message_name}_t, frame::decoded::{can_name}::{message_name}_t)> {message_name} = NULL;'.format(  can_name=database_name, message_name=cg_message.snake_name))
+        callbacks.append('\tinline std::function<void({can_name}_{message_name}_t, frame::decoded::{can_name}::{message_name}_t)> {message_name} = NULL;'.format(  can_name=database_name, message_name=cg_message.snake_name))
     return '\n'.join(callbacks)
-
-def _generate_data_structure( database_name: str, 
-                                cg_messages: List["CodeGenMessage"]) -> str:
-    data_structure = []
-    for cg_message in cg_messages:
-        data_structure.append('frame::decoded::{can_name}::{message_name}_t {message_name};'.format(can_name=database_name,
-                                                                              message_name=cg_message.snake_name))
-
-    return '\n'.join(data_structure)
 
 def _generate_decode_functions( database_name: str, 
                                 cg_messages: List["CodeGenMessage"]) -> str:
@@ -2231,7 +2213,6 @@ def _generate_endec_hpp(database_name: str,
                                           frame_structs = _generate_decoded_structs(database_name, cg_messages),
                                           encode_functions = _generate_encode_functions(database_name, cg_messages),
                                           decode_functions = _generate_decode_functions(database_name, cg_messages),
-                                          data_messages = _generate_data_structure(database_name, cg_messages),
                                           callbacks = _generate_callbacks(database_name, cg_messages)
                                            )
 
@@ -2378,10 +2359,9 @@ TRANSCEIVER_CPP_RECEIVE_CASES_FMT = '''\
             {{
                 {can_name}_{message_name}_t {can_name}_{message_name};
                 {can_name}_{message_name}_unpack(&{can_name}_{message_name}, can_frame_raw.data, can_frame_raw.can_dlc);
-                canlib::data.{can_name}.{message_name} = canlib::decode::{can_name}::{message_name}({can_name}_{message_name});
-                frame::decoded::{can_name}::{message_name}_t {can_name}_{message_name}_decoded = canlib::data.{can_name}.{message_name};
-                if(canlib::callback::rcv::{can_name}::{message_name} != NULL) {{
-                    canlib::callback::rcv::{can_name}::{message_name}({can_name}_{message_name}, {can_name}_{message_name}_decoded);
+                frame::decoded::{can_name}::{message_name}_t {can_name}_{message_name}_decoded = canlib::decode::{can_name}::{message_name}({can_name}_{message_name});
+                if(canlib::callback::{can_name}::{message_name} != NULL) {{
+                    canlib::callback::{can_name}::{message_name}({can_name}_{message_name}, {can_name}_{message_name}_decoded);
                 }}
                 return true;
             }}
