@@ -2238,7 +2238,7 @@ TRANSCEIVER_H_FMT = '''\
 #include <stdio.h>
 #include <string.h>
 
-#include "can-transceiver-lib/endec.hpp"
+#include "endec.hpp"
 
 #define STANDARD_TIMEOUT 10000
 
@@ -2283,7 +2283,7 @@ def _generate_transceiver_h(database_name: str,
 # TRANSCEIVER CPP
 
 TRANSCEIVER_CPP_FMT = '''\
-#include "can-transceiver-lib/transceiver.h"
+#include "transceiver.h"
 
 canlib::Transceiver::Transceiver() {{
 
